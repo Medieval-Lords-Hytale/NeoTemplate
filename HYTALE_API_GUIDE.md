@@ -1131,3 +1131,244 @@ While exact elements depend on Hytale's UI framework:
 - **Images**: Icons, textures
 - **Input**: Text fields (if available)
 - **Sliders**: Value selection (if available)
+
+## Rendering Text in the World
+
+For text that appears in the 3D game world (not on UI pages):
+
+### 1. Nameplates (Entity Labels)
+
+**What**: Text that floats above entities (like player names)  
+**Use for**: NPC names, entity labels, status indicators
+
+#### Adding a Nameplate to an Entity
+
+```java
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.server.core.entity.nameplate.Nameplate;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+
+// Add nameplate component to an entity
+Ref<EntityStore> entityRef = ...; // Your entity reference
+ComponentAccessor<EntityStore> accessor = store.getComponentAccessor();
+
+// Create and add nameplate
+Nameplate nameplate = new Nameplate("Custom NPC Name");
+accessor.addComponent(entityRef, nameplate);
+
+// Update nameplate text later
+Nameplate existing = accessor.getComponent(entityRef, Nameplate.class);
+if (existing != null) {
+    existing.setText("Updated Name");
+    // Nameplate will sync to clients automatically
+}
+```
+
+#### Nameplate Features
+
+```java
+// Create nameplate
+Nameplate nameplate = new Nameplate();
+nameplate.setText("Shop Keeper");  // Set text
+String text = nameplate.getText(); // Get text
+
+// Nameplate automatically:
+// - Floats above entity
+// - Faces the player
+// - Updates when text changes (consumeNetworkOutdated())
+// - Syncs to all nearby clients
+```
+
+### 2. Combat Text (Floating Damage Numbers)
+
+**What**: Animated text that appears during combat (damage numbers, etc.)  
+**Use for**: Damage indicators, healing numbers, status messages
+
+#### Combat Text Component
+
+```java
+import com.hypixel.hytale.server.core.modules.entityui.asset.CombatTextUIComponent;
+
+// Combat text is typically defined in assets and triggered by events
+// Used for damage numbers, healing, etc.
+// Supports animations (scale, position, opacity)
+
+// Example: Display damage number above entity
+// (Exact API may vary - combat text is often asset-driven)
+```
+
+#### Combat Text Features
+
+- Animated (position, scale, opacity)
+- Automatically rises and fades
+- Multiple texts can stack
+- Color customizable
+- Used for damage/healing indicators
+
+### 3. Entity UI Components (Advanced)
+
+**What**: Custom UI elements attached to entities in 3D space  
+**Use for**: Health bars, custom indicators, interactive prompts
+
+#### Adding UI Components to Entities
+
+```java
+import com.hypixel.hytale.server.core.modules.entityui.UIComponentList;
+
+// Add UI component list to entity
+UIComponentList uiList = new UIComponentList();
+uiList.components = new String[] {
+    "my_custom_ui_component"  // Asset ID of your UI component
+};
+uiList.update(); // Updates internal IDs
+
+accessor.addComponent(entityRef, uiList);
+```
+
+#### Creating Custom Entity UI (Asset-Based)
+
+Entity UI components are typically defined in JSON assets:
+
+```json
+{
+  "type": "combat_text",
+  "id": "my_damage_indicator",
+  "hitbox_offset": [0, 2.0],
+  "animations": {
+    "appear": { "duration": 0.5, "type": "scale" },
+    "fade": { "duration": 1.0, "type": "opacity" }
+  }
+}
+```
+
+Then reference in code:
+```java
+EntityUIComponent.getAssetStore().get("my_damage_indicator");
+```
+
+### Comparison: World Text Options
+
+| Method | Type | Movement | Interactivity | Best For |
+|--------|------|----------|---------------|----------|
+| **Nameplate** | Simple text | Follows entity | None | Entity names, labels |
+| **Combat Text** | Animated text | Rises/fades | None | Damage, healing, feedback |
+| **Entity UI** | Complex UI | Attached to entity | Limited | Health bars, indicators |
+| **Custom Pages** | Full UI | Screen overlay | Full | Menus, dialogs |
+
+### Practical Examples
+
+#### Example 1: NPC with Custom Name
+
+```java
+public class CustomNPC {
+    
+    public void spawnNPC(World world, Vector3d position) {
+        // Create NPC entity
+        Ref<EntityStore> npc = world.spawnEntity("npc", position);
+        ComponentAccessor<EntityStore> accessor = world.getStore().getComponentAccessor();
+        
+        // Add nameplate
+        Nameplate nameplate = new Nameplate("§6[Quest] Village Elder");
+        accessor.addComponent(npc, nameplate);
+        
+        // NPC now has golden "[Quest] Village Elder" floating above
+    }
+    
+    public void updateNPCStatus(Ref<EntityStore> npc, ComponentAccessor<EntityStore> accessor, String status) {
+        Nameplate nameplate = accessor.getComponent(npc, Nameplate.class);
+        if (nameplate != null) {
+            nameplate.setText("§6[Quest] Village Elder\n§7" + status);
+            // Multi-line nameplate showing NPC name and status
+        }
+    }
+}
+```
+
+#### Example 2: Damage Display System
+
+```java
+public class DamageDisplaySystem extends DamageEventSystem {
+    
+    @Override
+    public void handle(
+        int entityIndex,
+        ArchetypeChunk<EntityStore> chunk,
+        Store<EntityStore> store,
+        CommandBuffer<EntityStore> buffer,
+        Damage damage
+    ) {
+        float amount = damage.getAmount();
+        
+        // Display damage as floating text
+        // This would typically use CombatTextUIComponent
+        // which shows animated damage numbers above the entity
+        
+        // The combat text system automatically:
+        // - Spawns text at hit location
+        // - Animates upward and fades
+        // - Color codes based on damage type
+        
+        // Exact implementation depends on Hytale's combat text API
+    }
+}
+```
+
+#### Example 3: Shop NPC with Interactive Nameplate
+
+```java
+public void createShopKeeper(World world, Vector3d position) {
+    // Spawn NPC
+    Ref<EntityStore> shopkeeper = world.spawnEntity("npc", position);
+    ComponentAccessor<EntityStore> accessor = world.getStore().getComponentAccessor();
+    
+    // Add nameplate with instructions
+    Nameplate nameplate = new Nameplate(
+        "§e§lShop Keeper\n" +
+        "§7Right-click to browse"
+    );
+    accessor.addComponent(shopkeeper, nameplate);
+    
+    // When player right-clicks NPC, open shop UI page
+    // (via interaction handler)
+}
+```
+
+### Notes on World Text
+
+1. **Nameplates are simplest** - Just text, follows entity, auto-faces player
+2. **Combat text is asset-driven** - Defined in JSON, triggered by events
+3. **Entity UI is advanced** - Full UI components in 3D space, complex setup
+4. **Color codes work** - Use `§` formatting (e.g., `§6` for gold, `§l` for bold)
+5. **Multi-line supported** - Use `\n` for line breaks in nameplates
+6. **Auto-syncing** - Changes sync to clients automatically
+7. **Performance** - Many nameplates can impact performance; use wisely
+
+### Common Use Cases
+
+**Use Nameplates for:**
+- NPC names and titles
+- Entity type labels
+- Status indicators ("Friendly", "Hostile")
+- Quest markers
+- Shop/service indicators
+
+**Use Combat Text for:**
+- Damage numbers
+- Healing numbers
+- XP gain notifications
+- Critical hit indicators
+- Status effect triggers
+
+**Use Entity UI for:**
+- Health/mana bars
+- Boss health displays
+- Casting bars
+- Buff/debuff indicators
+- Complex interactive elements
+
+**Use Custom Pages for:**
+- Full menus
+- Shops and trading
+- Quest dialogs
+- Inventory screens
+- Settings/configuration
