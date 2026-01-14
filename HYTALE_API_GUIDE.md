@@ -780,4 +780,354 @@ com.hypixel.hytale.component.ComponentRegistry
 # Entity/Block registries
 com.hypixel.hytale.server.core.modules.entity.EntityRegistry
 com.hypixel.hytale.server.core.universe.world.meta.BlockStateRegistry
+
+# UI System
+com.hypixel.hytale.server.core.entity.entities.player.pages.CustomUIPage
+com.hypixel.hytale.server.core.entity.entities.player.pages.PageManager
+com.hypixel.hytale.server.core.entity.entities.player.windows.Window
+com.hypixel.hytale.server.core.ui.builder.UICommandBuilder
 ```
+
+## Creating User Interfaces
+
+Hytale provides three main UI systems for different purposes:
+
+### 1. Custom Pages (Recommended for Custom UI)
+
+**What**: Full-screen custom UI pages that can display any content  
+**Use for**: Menus, dialogs, shops, quest interfaces, custom GUIs
+
+#### Creating a Custom Page
+
+```java
+package com.example.plugin.ui;
+
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.server.core.entity.entities.player.pages.CustomUIPage;
+import com.hypixel.hytale.server.core.ui.builder.UICommandBuilder;
+import com.hypixel.hytale.server.core.ui.builder.UIEventBuilder;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.protocol.packets.interface_.CustomPageLifetime;
+
+public class MyCustomPage extends CustomUIPage {
+    
+    public MyCustomPage(PlayerRef playerRef) {
+        super(playerRef, CustomPageLifetime.PERSISTENT);
+        // Lifetime options:
+        // PERSISTENT - Stays open until explicitly closed
+        // TEMPORARY - Closes on certain actions
+    }
+    
+    /**
+     * Build the UI structure.
+     * This is where you define your UI elements.
+     */
+    @Override
+    public void build(
+        Ref<EntityStore> playerEntity,
+        UICommandBuilder ui,
+        UIEventBuilder events,
+        Store<EntityStore> store
+    ) {
+        // Clear existing UI
+        ui.clear("root");
+        
+        // Add a container
+        ui.append("root", "main-container");
+        
+        // Add text
+        ui.append("main-container", "title-text");
+        ui.set("title-text.text", "Welcome to My Plugin!");
+        
+        // Add a button
+        ui.append("main-container", "close-button");
+        ui.set("close-button.text", "Close");
+        ui.set("close-button.type", "button");
+        
+        // Register button click event
+        events.registerEvent("close-button", "click", "close-clicked");
+    }
+    
+    /**
+     * Handle UI events (button clicks, etc.)
+     */
+    @Override
+    public void handleDataEvent(
+        Ref<EntityStore> playerEntity,
+        Store<EntityStore> store,
+        String eventId
+    ) {
+        switch (eventId) {
+            case "close-clicked":
+                close(); // Close the page
+                break;
+            // Handle other events...
+        }
+    }
+    
+    /**
+     * Called when the page is dismissed/closed
+     */
+    @Override
+    public void onDismiss(Ref<EntityStore> playerEntity, Store<EntityStore> store) {
+        // Cleanup when page closes
+    }
+}
+```
+
+#### Opening a Custom Page
+
+```java
+// In your event handler or command
+Player player = event.getPlayer();
+
+// Get the player's page manager
+PageManager pageManager = player.getPageManager();
+
+// Create and open the page
+MyCustomPage page = new MyCustomPage(player.getPlayerRef());
+pageManager.openCustomPage(
+    player.getEntityRef(),
+    player.getWorld().getStore(),
+    page
+);
+```
+
+#### UICommandBuilder API
+
+```java
+// Element management
+ui.clear("elementId")                    // Clear element's children
+ui.remove("elementId")                   // Remove element
+ui.append("parentId", "childId")         // Add child to parent
+ui.insertBefore("existingId", "newId")   // Insert before element
+
+// Setting properties
+ui.set("elementId.text", "Hello")        // Set text
+ui.set("elementId.visible", true)        // Set visibility
+ui.set("elementId.enabled", false)       // Enable/disable
+ui.set("elementId.width", 200)           // Set width (pixels)
+ui.set("elementId.height", 100)          // Set height
+ui.set("elementId.x", 50)                // Set X position
+ui.set("elementId.y", 50)                // Set Y position
+ui.set("elementId.color", "#FF0000")     // Set color (hex)
+ui.set("elementId.image", "texture:ui/button") // Set image/texture
+
+// Arrays and lists
+ui.set("elementId.items", new String[] {"Item1", "Item2"})
+ui.set("elementId.data", Arrays.asList("A", "B", "C"))
+```
+
+### 2. Windows (Inventory-Style UI)
+
+**What**: Container-based UIs similar to inventory screens  
+**Use for**: Chests, furnaces, crafting tables, custom inventories
+
+```java
+package com.example.plugin.ui;
+
+import com.hypixel.hytale.server.core.entity.entities.player.windows.Window;
+import com.hypixel.hytale.protocol.packets.window.WindowType;
+import com.google.gson.JsonObject;
+
+public class MyCustomWindow extends Window {
+    
+    public MyCustomWindow() {
+        super(WindowType.CUSTOM); // Or other WindowType
+    }
+    
+    @Override
+    public JsonObject getData() {
+        JsonObject data = new JsonObject();
+        // Define window data (title, slots, etc.)
+        data.addProperty("title", "My Custom Window");
+        return data;
+    }
+    
+    @Override
+    protected boolean onOpen0() {
+        // Called when window opens
+        return true; // Return false to cancel opening
+    }
+    
+    @Override
+    protected void onClose0() {
+        // Called when window closes
+    }
+    
+    @Override
+    public void handleAction(
+        Ref<EntityStore> playerEntity,
+        Store<EntityStore> store,
+        WindowAction action
+    ) {
+        // Handle player actions (clicks, etc.)
+    }
+}
+```
+
+#### Opening a Window
+
+```java
+Player player = event.getPlayer();
+WindowManager windowManager = player.getWindowManager();
+
+MyCustomWindow window = new MyCustomWindow();
+windowManager.open(window);
+```
+
+### 3. Entity UI Components (Floating UI)
+
+**What**: UI elements attached to entities (health bars, nameplates, etc.)  
+**Use for**: Floating text, health displays, damage numbers, entity labels
+
+```java
+// Entity UI components are typically defined in assets
+// and attached to entities via components
+// Less common for plugin use - primarily for visual feedback
+
+// Example: Combat text (damage numbers)
+// These are usually triggered by game events and use predefined animations
+```
+
+### UI System Comparison
+
+| Feature | Custom Pages | Windows | Entity UI |
+|---------|-------------|---------|-----------|
+| **Layout** | Full custom layout | Container/grid based | Floating/3D space |
+| **Complexity** | High flexibility | Medium (inventory-style) | Low (visual only) |
+| **Use case** | Menus, shops, dialogs | Inventories, containers | Health bars, damage |
+| **Interaction** | Buttons, inputs, events | Click/drag items | Limited |
+| **Best for** | Custom game UIs | Storage interfaces | Visual feedback |
+
+### Complete Example: Shop UI
+
+```java
+package com.example.plugin.ui;
+
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.server.core.entity.entities.player.pages.CustomUIPage;
+import com.hypixel.hytale.server.core.ui.builder.UICommandBuilder;
+import com.hypixel.hytale.server.core.ui.builder.UIEventBuilder;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.protocol.packets.interface_.CustomPageLifetime;
+
+public class ShopPage extends CustomUIPage {
+    private int selectedItem = -1;
+    
+    public ShopPage(PlayerRef playerRef) {
+        super(playerRef, CustomPageLifetime.PERSISTENT);
+    }
+    
+    @Override
+    public void build(
+        Ref<EntityStore> playerEntity,
+        UICommandBuilder ui,
+        UIEventBuilder events,
+        Store<EntityStore> store
+    ) {
+        // Clear and build UI
+        ui.clear("root");
+        ui.append("root", "shop-container");
+        
+        // Title
+        ui.append("shop-container", "title");
+        ui.set("title.text", "Village Shop");
+        ui.set("title.fontSize", 24);
+        
+        // Item list
+        ui.append("shop-container", "items-list");
+        String[] items = {"Sword - 100g", "Shield - 75g", "Potion - 25g"};
+        ui.set("items-list.items", items);
+        
+        // Buy button
+        ui.append("shop-container", "buy-button");
+        ui.set("buy-button.text", "Buy Item");
+        ui.set("buy-button.enabled", false); // Disabled until item selected
+        
+        // Close button
+        ui.append("shop-container", "close-button");
+        ui.set("close-button.text", "Close Shop");
+        
+        // Register events
+        events.registerEvent("items-list", "select", "item-selected");
+        events.registerEvent("buy-button", "click", "buy-clicked");
+        events.registerEvent("close-button", "click", "close-clicked");
+    }
+    
+    @Override
+    public void handleDataEvent(
+        Ref<EntityStore> playerEntity,
+        Store<EntityStore> store,
+        String eventId
+    ) {
+        switch (eventId) {
+            case "item-selected":
+                // Item was selected in list
+                selectedItem = 0; // Get actual index from event
+                
+                // Update UI to enable buy button
+                UICommandBuilder ui = new UICommandBuilder();
+                ui.set("buy-button.enabled", true);
+                sendUpdate(ui);
+                break;
+                
+            case "buy-clicked":
+                if (selectedItem >= 0) {
+                    // Process purchase
+                    processPurchase(playerEntity, selectedItem);
+                }
+                break;
+                
+            case "close-clicked":
+                close();
+                break;
+        }
+    }
+    
+    private void processPurchase(Ref<EntityStore> playerEntity, int itemIndex) {
+        // Handle purchase logic
+        // Deduct currency, give item, etc.
+    }
+}
+```
+
+### Opening the Shop
+
+```java
+// In your command or NPC interaction handler
+@Override
+public void execute(Player player, String[] args) {
+    ShopPage shop = new ShopPage(player.getPlayerRef());
+    player.getPageManager().openCustomPage(
+        player.getEntityRef(),
+        player.getWorld().getStore(),
+        shop
+    );
+}
+```
+
+### Best Practices
+
+1. **Keep UI updates small** - Only update what changed, don't rebuild entire UI
+2. **Use events properly** - Register all interactive elements with UIEventBuilder
+3. **Handle dismissal** - Always implement `onDismiss()` for cleanup
+4. **Validate input** - Check player actions in `handleDataEvent()`
+5. **Use appropriate lifetime** - PERSISTENT for menus, TEMPORARY for notifications
+6. **Cache UI state** - Store state in your page class, not in UI repeatedly
+7. **Test thoroughly** - UI bugs are hard to debug, test all interactions
+
+### UI Elements (Typical)
+
+While exact elements depend on Hytale's UI framework:
+- **Containers**: Layout panels, grids
+- **Text**: Labels, titles, descriptions
+- **Buttons**: Clickable elements
+- **Lists**: Scrollable item lists
+- **Images**: Icons, textures
+- **Input**: Text fields (if available)
+- **Sliders**: Value selection (if available)
