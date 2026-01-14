@@ -1,4 +1,4 @@
-package me.ascheladd.hytale.plugins.neotemplate;
+package me.ascheladd.hytale.neotemplate;
 
 import javax.annotation.Nonnull;
 
